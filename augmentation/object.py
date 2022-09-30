@@ -1,14 +1,14 @@
 import cv2
 from typing import Tuple
 
-class OBJReader: 
-    """ Python .obj class. Constructor params:
-        * obj_path: Absolute path to .obj file
-        * texture_path: Path to texture image (eg. png, jpg)
-    """
+class OBJ(): 
+    """ Python .obj class. """
+    
     def __init__(self, obj_path: str, texture_path: str):
         """
-            Many of the definitions have been taken from the Wikipedia page Wavefront .obj (https://en.wikipedia.org/wiki/Wavefront_.obj_file))
+            Constructor params:
+            * obj_path: Absolute path to .obj file
+            * texture_path: Path to texture image (eg. png, jpg)
         """
         # Reads texture img from path
         self.texture = cv2.imread(texture_path)
@@ -19,7 +19,6 @@ class OBJReader:
         self.faces = []
         # Iterates for each line of .obj file
         for line in open(obj_path, "r"):
-            # TODO: AÑADIR UN TRY-EXCEPT
             if line.startswith("#"):
                 # jumps to the next line, `#` is a comment or an empty line
                 continue
@@ -52,15 +51,14 @@ class OBJReader:
                         vertex_colors.append(self._get_vertex_color(int(elements[1]))) # Adds the second element (texture coordinate)
                     if len(elements) > 2:
                         vertex_normals.append(self._get_vertex_normals(int(elements[2]))) # Adds the second element (normal vector)
-                if vertex_colors and vertex_normals:
-                    # Adds obj face as [points,colors,normals]
-                    self.faces.append([vertex_points, vertex_colors, vertex_normals])
-                elif vertex_colors:
-                    # Adds obj face as [points,colors]
-                    self.faces.append([vertex_points, vertex_colors])
-                elif vertex_normals:
-                    # Adds obj face as [points,normals]
-                    self.faces.append([vertex_points, vertex_normals])
+                # Every face has at least 3 pts
+                face = {'points': vertex_points}
+                if vertex_colors:
+                    face['colors'] = vertex_colors
+                if vertex_normals:
+                    face['normals'] = vertex_normals
+                # Adds obj face 
+                self.faces.append(face)
 
     def _get_vertex_point(self, vertex_index: int) -> Tuple[int, int, int]:
         """ 
@@ -75,11 +73,11 @@ class OBJReader:
             * texture_coordinates_index: Integer index that indicates where in the texture coordinates array are the relative texture coordinates.
         """
         # Relative texture coordinates
-        xr, yr = self._texture_coordinates[texture_coordinates_index-1]
+        u, v = self._texture_coordinates[texture_coordinates_index-1]
         h, w, _ = self.texture.shape
         # Absolute coordinates of pixel
-        x, y = [int(w*xr),int(h*(1-yr))]
-        return self.texture[x][y]
+        x, y = [int(h*(1-v)),int(w*u)]
+        return [int(self.texture[x][y][i]) for i in range(0,3)]
 
     def _get_vertex_normals(self, vertex_normal_index: int) -> Tuple[int, int, int]:
         """ 
