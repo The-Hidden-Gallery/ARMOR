@@ -6,7 +6,7 @@ import cv2
 import os
 from PIL import Image
 from typing import List, Tuple
-from aruco.Aruco import Aruco
+from aruco.aruco import Aruco
 
 NUM_ID_CANDIDATES = 100
 ARUCO_PX_DIMS = 300
@@ -34,7 +34,7 @@ DICTIONARIES.add(cv2.aruco.DICT_7X7_1000)
 MATRIX_COEFFICIENTS = np.array([[1367.14, 0, 973.89], [0, 1368.28, 526.45], [0, 0, 1]])
 
 class ArucoDetection():
-    """ Aruco detector class. Aruco utils?"""
+    """ Aruco detector class."""
 
     @staticmethod
     def detect(input_image: np.ndarray, dictionaries: List[cv2.aruco_Dictionary] = None, marker_length: float = 0.02, matrix_coefficients: List[Tuple[float, float, float]] = MATRIX_COEFFICIENTS, distortion_coefficients: Tuple[float, float, float, float, float] = np.zeros((1, 5))) -> List[Aruco]:
@@ -55,13 +55,12 @@ class ArucoDetection():
             for i in range(0,len(aruco_corners)):
                 # Estimation of each marker pose
                 rotation, translation, markerpoints = cv2.aruco.estimatePoseSingleMarkers(aruco_corners[i], marker_length, matrix_coefficients, distortion_coefficients)
-                arucos.append(Aruco(aruco_corners[i][0], rotation, translation, dictionary, aruco_ids[i]))
+                arucos.append(Aruco(aruco_corners[i][0], rotation[0][0], translation[0][0], dictionary, aruco_ids[i][0]))
         return arucos
 
     @staticmethod
-    def draw(input_image: np.ndarray, arucos: List[Aruco], marker_length: float = 0.02, matrix_coefficients: List[Tuple[float, float, float]] = MATRIX_COEFFICIENTS, distortion_coefficients: Tuple[float, float, float, float, float] = np.zeros((1, 5)), draw_bounds: bool = True, draw_axis: bool = True, draw_ids: bool = True) -> np.ndarray:
-        """
-        @brief Draws a representation of the detected information of the edges and axes of each ArUcos marker.
+    def draw_detected_markers(input_image: np.ndarray, arucos: List[Aruco], marker_length: float = 0.02, matrix_coefficients: List[Tuple[float, float, float]] = MATRIX_COEFFICIENTS, distortion_coefficients: Tuple[float, float, float, float, float] = np.zeros((1, 5)), draw_bounds: bool = True, draw_axis: bool = True, draw_ids: bool = True) -> np.ndarray:
+        """ Draws a representation of the detected information of the edges and axes of each ArUcos marker.
             * Draws an enclosing rectangle fitted to the boundaries of each marker. (`draw_bounds` must be `True`)
             * Draws the x,y,z set of vectors is drawn on each markers's surfaces. (`draw_axis` must be `True`)
         """

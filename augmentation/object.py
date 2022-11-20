@@ -4,14 +4,15 @@ from typing import Tuple
 class OBJ(): 
     """ Python .obj class. """
     
-    def __init__(self, obj_path: str, texture_path: str):
+    def __init__(self, obj_path: str, texture_path: str = None):
         """
             Constructor params:
             * obj_path: Absolute path to .obj file
             * texture_path: Path to texture image (eg. png, jpg)
         """
-        # Reads texture img from path
-        self.texture = cv2.imread(texture_path)
+        if texture_path is not None:
+            # Reads texture img from path
+            self.texture = cv2.imread(texture_path)
         # Inializaction of arrays
         self._vertices = []
         self._texture_coordinates = []
@@ -38,7 +39,7 @@ class OBJ():
             elif line.startswith("f "):
                 # `f` Faces are defined using lists of vertex, texture and normal indices in the format vertex_index/texture_index/normal_index for which each
                 #  index starts at 1 and increases corresponding to the order in which the referenced element was defined. Polygons such as quadrilaterals can be 
-                #  defined by using more than three indices.
+                # defined by using more than three indices.
                 vertex_points = []
                 vertex_colors = []
                 vertex_normals = [] 
@@ -46,9 +47,14 @@ class OBJ():
                     # Iterates for each index within a line f v1/vt1/vn1 ->(1) v2/vt2/vn2 ->(2)  v3/vt3/vn3 ->(3)
                     elements = i.split('/') # Elements of the index
                     vertex_points.append(self._get_vertex_point(int(elements[0]))) # Adds the first element (vertex point)
-                    if len(elements) > 1 and elements[1]:
-                        # second element of index not ""
-                        vertex_colors.append(self._get_vertex_color(int(elements[1]))) # Adds the second element (texture coordinate)
+                    try:
+                        # Checks if texture exists
+                        assert self.texture is not None
+                        if len(elements) > 1 and elements[1]:
+                            # second element of index not ""
+                            vertex_colors.append(self._get_vertex_color(int(elements[1]))) # Adds the second element (texture coordinate)
+                    except AssertionError:
+                        pass
                     if len(elements) > 2:
                         vertex_normals.append(self._get_vertex_normals(int(elements[2]))) # Adds the second element (normal vector)
                 # Every face has at least 3 pts
@@ -76,9 +82,18 @@ class OBJ():
         u, v = self._texture_coordinates[texture_coordinates_index-1]
         h, w, _ = self.texture.shape
         # Absolute coordinates of pixel
-        x, y = [int(h*(1-v)),int(w*u)]
+        x, y = [round(h*(1-v)),round(w*u)]
+        # Texture coordinate checking
+        if x < 0:
+            x = 0
+        elif x >= w:
+            x = w-1
+        if y < 0:
+            y = 0
+        elif y >= h:
+            y = h-1
         return [int(self.texture[x][y][i]) for i in range(0,3)]
-
+            
     def _get_vertex_normals(self, vertex_normal_index: int) -> Tuple[int, int, int]:
         """ 
             Returns the (u,v,w) normal vectors of that vertex. Params:
