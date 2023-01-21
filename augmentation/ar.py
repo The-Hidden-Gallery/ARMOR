@@ -2,18 +2,19 @@
 import cv2
 import numpy as np
 import augmentation.aruco_module as aruco
-from augmentation.object import OBJ 
+from augmentation.obj import OBJ 
 from aruco.aruco import Aruco
 from math import dist
 
 from typing import Tuple, List
 
-from time import time #TODO: remove after debug
 
 DEFAULT_COLOR = (158, 5, 81)
 
 # TODO: Eliminate this hardcoded intrisic matrix
 EXTRINSIC_MATRIX = np.array([[1019.37187, 0, 618.709848], [0, 1024.2138, 327.280578], [0, 0, 1]] )
+
+M = 2000 # Autoscale constant
 
 def augment_aruco(image: np.array, aruco: Aruco, obj: OBJ, scale: int = 1) -> np.array:
 	""" Projects an AR OBJ on the Aruco surface in the image. TODO: improve definition. Args:
@@ -169,4 +170,4 @@ def calculate_autoscale_factor(aruco_corners: List[Tuple[int,int]]) -> int:
 	# Finds the maximum length of detected aruco edge
 	max_size = max([max(abs(aruco_corners[i]-aruco_corners[i-1])) for i in range(0,len(aruco_corners))])
 	# The autoscale value depends on a constant of value 2000
-	return max_size/2000 #TODO: Check hardcoded 2000 param
+	return max_size/2000
