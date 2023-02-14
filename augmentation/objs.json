@@ -1,26 +1,23 @@
 {
     "3": {
-        "5": {
-            "model": "cube.obj",
-            "texture": "cube_texture.png"
+        "0": {
+            "model": "fox",
+            "texture": "fox.png"
         },
-        "6": {
-            "model": "fox.obj",
-            "texture": "fox_texture.png"
+        "2": {
+            "model": "bouncing_ball"
+        },
+        "15": {
+            "model": "rocket"
         }
     },
     "11": {
         "1": {
-            "model": "fox.obj",
-            "texture": "fox_texture.png"
+            "model": "fox",
+            "texture": "fox.png"
         },
         "2": {
-            "model": "fox.obj",
-            "texture": "fox_texture.png"
-        },
-        "3": {
-            "model": "fox.obj",
-            "texture": "fox_texture.png"
+            "model": "bouncing_ball"
         }
     }
 }

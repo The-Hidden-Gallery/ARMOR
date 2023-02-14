@@ -8,7 +8,6 @@ from math import dist
 
 from typing import Tuple, List
 
-
 DEFAULT_COLOR = (158, 5, 81)
 
 # TODO: Eliminate this hardcoded intrisic matrix
@@ -25,7 +24,7 @@ def augment_aruco(image: np.array, aruco: Aruco, obj: OBJ, scale: int = 1) -> np
 
 		Returns the image with augmented 3D model.
 	"""
-	aruco_center = calculate_aruco_center(aruco.corners)
+	aruco_center = aruco.center()
 	aruco_center.append(0) # TODO: Remove after debug
 	# Calculates the intricics matrix
 	intrinsic_matrix = compose_intrisic_matrix(aruco.rotation,[0,0,0])
@@ -34,6 +33,8 @@ def augment_aruco(image: np.array, aruco: Aruco, obj: OBJ, scale: int = 1) -> np
 	faces_points = []
 	faces_colors = []
 	autoscale_factor = calculate_autoscale_factor(aruco.corners)
+	# Checks if obj has image or mtl texture
+	mtl = hasattr(obj,'materials')
 	for face in obj.faces:
 		# vertices_points = scale*face['points']
 		points = face['points']
@@ -45,21 +46,29 @@ def augment_aruco(image: np.array, aruco: Aruco, obj: OBJ, scale: int = 1) -> np
 		# points = np.int32(points) # TODO: Uncomment after debug
 		faces_points.append(points)
 		try:
-			vertices_colors = face['colors']
-			# Gets the average value of each BRG
-			average_blue = sum([vertices_colors[i][0] for i in range(0,len(face["colors"]))])/len(face["colors"])
-			average_green = sum([vertices_colors[i][1] for i in range(0,len(face["colors"]))])/len(face["colors"])
-			average_red = sum([vertices_colors[i][2] for i in range(0,len(face["colors"]))])/len(face["colors"])
-			# Face color as the sum of each average BRG coord
-			average_color = [int(average_blue), int(average_green), int(average_red)]
+			if mtl:
+				# Gets the material color (diffuse color) #TODO: Explore new ways to get a more aprox color
+				color = obj.materials[face['material']]['diffuse_color']
+			else:
+				vertices_colors = face['colors']
+				# Gets the average value of each BRG
+				average_blue = sum([vertices_colors[i][0] for i in range(0,len(face["colors"]))])/len(face["colors"])
+				average_green = sum([vertices_colors[i][1] for i in range(0,len(face["colors"]))])/len(face["colors"])
+				average_red = sum([vertices_colors[i][2] for i in range(0,len(face["colors"]))])/len(face["colors"])
+				# Face color as the sum of each average BRG coord
+				color = [int(average_blue), int(average_green), int(average_red)]
 		except KeyError:
-			average_color = DEFAULT_COLOR # Face color not defined
-		faces_colors.append(average_color)
+			color = DEFAULT_COLOR # Face color not defined
+		faces_colors.append(color)
 	# Orders obj faces from nearest to furthest
 	faces_points, faces_colors = order_faces([aruco_center[0],aruco_center[1],10000],faces_points,faces_colors) # TODO: Change reference point
 	faces_points = _remove_z_coords(faces_points) # TODO: Remove after debug
 	# Draws obj faces
 	[cv2.fillConvexPoly(image, np.int32(face_points), faces_colors[i]) for i,face_points in enumerate(faces_points)]
+	# for i,face_points in enumerate(faces_points):
+	# 	cv2.fillConvexPoly(image, np.int32(face_points), faces_colors[i])
+	# 	cv2.imshow("camera",image)
+	# 	cv2.waitKey(10)
 	return image
 
 def project_3d_point(point: List[Tuple[int, int, int]], projection_matrix: List[Tuple[int, int, int]]) -> List[Tuple[int, int]]:
@@ -101,23 +110,11 @@ def compose_projection_matrix(extrinsic_matrix: List[Tuple[int,int,int]], intrin
 	"""
 	return np.dot(np.float64(extrinsic_matrix), np.float64(intrinsic_matrix))
 
-def calculate_aruco_center(aruco_corners: List[Tuple[int,int]]) -> Tuple[int,int]:
-	""" Returns the estimation of the center of aruco. Args:
-		* `aruco_corners`: List of Aruco's corners
-	"""
-	x_coords = [corner[0] for corner in aruco_corners]
-	y_coords = [corner[1] for corner in aruco_corners]
-	# Center as diference between max and min value
-	x_center = (max(x_coords)+min(x_coords))/2
-	y_center = (max(y_coords)+min(y_coords))/2
-	return [x_center, y_center]
-
 def resize_object(face_points: List[Tuple[int,int,int]], scale: int = 1) -> List[Tuple[int,int,int]]:
 	""" Resizes the face to adjust the model to the Aruco bounds. Args:
 		* `face`: Object face
 		* `scale`: Resize factor (1 by default) # TODO: Find out why that factor should be 1/10
 	"""
-	# TODO: Include autoscaling
 	return face_points*scale
 
 def calculate_autoscale_factor(aruco_corners: List[Tuple[int,int]]):
@@ -145,7 +142,6 @@ def order_faces(reference: Tuple[int,int,int], faces_points: List[List[Tuple[int
 		distances.append(distance)
 	# Gets the ordered indexes by distance
 	order = np.argsort(distances)
-	# ordered_faces_point = [faces_points[i] for i in order] #TODO: Uncomment after debug
 	ordered_faces_point = [faces_points[i] for i in order] #TODO: Remove after debug
 	ordered_faces_colors = [faces_colors[i] for i in order]
 	return (np.array(ordered_faces_point), ordered_faces_colors)

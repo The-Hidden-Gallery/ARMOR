@@ -23,3 +23,14 @@ class Aruco:
     @id.setter
     def id(self, int) -> None:
         self._id = int
+
+    def center(self) -> Tuple[int,int]:
+        """ Returns the estimation of the center of aruco. Args:
+            * `aruco_corners`: List of Aruco's corners
+        """
+        x_coords = [corner[0] for corner in self.corners]
+        y_coords = [corner[1] for corner in self.corners]
+        # Center as diference between max and min value
+        x_center = (max(x_coords)+min(x_coords))/2
+        y_center = (max(y_coords)+min(y_coords))/2
+        return [x_center, y_center]

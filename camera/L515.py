@@ -22,6 +22,8 @@ class L515(CameraModule):
         self._source = int(Configuration.get_config_param("Camera","source"))
         # Selects the output screen monitor
         # self._screen = screeninfo.get_monitors()[self._source]
+        img_width = int(Configuration.get_config_param("Camera","width"))
+        img_height = int(Configuration.get_config_param("Camera","height"))
         # Checks if a L515 Camera is connected
         try:
             # Creates a interactive instance to communicate with the camera
@@ -29,7 +31,7 @@ class L515(CameraModule):
             # Gets the default configuration for pipelines
             self._config = rs2.config()
             # Sets the stream type, camera resolution and format
-            self._config.enable_stream(rs2.stream.color, L515_WIDTH, L515_HEIGHT, rs2.format.bgr8, FRAMERATE)
+            self._config.enable_stream(rs2.stream.color, img_width, img_height, rs2.format.bgr8, FRAMERATE)
             # Starts the pipeline streaming with the configuration added
             self._pipeline.start(self._config)
         except RuntimeError:

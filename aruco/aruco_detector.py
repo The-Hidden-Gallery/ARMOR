@@ -46,10 +46,12 @@ class ArucoDetection():
         # Checks predefined dictionaries 
         if not dictionaries: 
             dictionaries = DICTIONARIES
+        # Creates aruco params
+        if dictionaries:
+            aruco_params = cv2.aruco.DetectorParameters_create()
         # Iterates for each aruco dictionary
         for dictionary in dictionaries:
             aruco_dict = cv2.aruco.Dictionary_get(dictionary)
-            aruco_params = cv2.aruco.DetectorParameters_create()
             # Detection of all arucos in the image
             (aruco_corners, aruco_ids, rejected) = cv2.aruco.detectMarkers(input_image, aruco_dict, parameters=aruco_params)
             for i in range(0,len(aruco_corners)):
@@ -60,7 +62,7 @@ class ArucoDetection():
 
     @staticmethod
     def draw_detected_markers(input_image: np.ndarray, arucos: List[Aruco], marker_length: float = 0.02, matrix_coefficients: List[Tuple[float, float, float]] = MATRIX_COEFFICIENTS, distortion_coefficients: Tuple[float, float, float, float, float] = np.zeros((1, 5)), draw_bounds: bool = True, draw_axis: bool = True, draw_ids: bool = True) -> np.ndarray:
-        """ Draws a representation of the detected information of the edges and axes of each ArUcos marker.
+        """ Draws a representation of the detected information of the edges and axes of each ArUco marker.
             * Draws an enclosing rectangle fitted to the boundaries of each marker. (`draw_bounds` must be `True`)
             * Draws the x,y,z set of vectors is drawn on each markers's surfaces. (`draw_axis` must be `True`)
         """
