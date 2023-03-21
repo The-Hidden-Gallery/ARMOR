@@ -13,6 +13,9 @@ ARUCO_PX_DIMS = 300
 BORDER_BITS = 3
 N_ANGLE_MARKS = 19
 
+OPT_IMAGE_WIDTH = 640
+OPT_IMAGE_HEIGHT = 480
+
 DICTIONARIES = set()
 # DICTIONARIES.add(cv2.aruco.DICT_4X4_50)
 # DICTIONARIES.add(cv2.aruco.DICT_4X4_100)
@@ -37,9 +40,15 @@ class ArucoDetection():
     """ Aruco detector class."""
 
     @staticmethod
-    def detect(input_image: np.ndarray, dictionaries: List[cv2.aruco_Dictionary] = None, marker_length: float = 0.02, matrix_coefficients: List[Tuple[float, float, float]] = MATRIX_COEFFICIENTS, distortion_coefficients: Tuple[float, float, float, float, float] = np.zeros((1, 5))) -> List[Aruco]:
+    def detect(image: np.ndarray, dictionaries: List[cv2.aruco_Dictionary] = None, marker_length: float = 0.02, matrix_coefficients: List[Tuple[float, float, float]] = MATRIX_COEFFICIENTS, distortion_coefficients: Tuple[float, float, float, float, float] = np.zeros((1, 5)), optimized: bool = False) -> List[Aruco]:
         """ 
-            Receives an image and returns an array of detected arucos. 
+            Performs an Aruco detection on input image, and returns the markers found from the different dictionaries indicated. Params:
+            * image: Input image
+            * dictionaries: Arcuo dictionaries to detect. If `None` then it runs for all posible dictionaries
+            * marker_length: Aproximate length of physical Aruco marker in meters
+            * matrix_coefficients: Matrix of Camera coefficients. If `None` then uses default `MATRIX_COEFFICIENTS` value (not recomended)
+            * distortion_coefficients: Distorsion coefficients array, by default all values are set to zero. 
+            * optimized: Optimizes the aruco detection by reducing input image and rescaling the output detected markers locations. 
         """
         # Aruco array initialization
         arucos = []
@@ -49,11 +58,20 @@ class ArucoDetection():
         # Creates aruco params
         if dictionaries:
             aruco_params = cv2.aruco.DetectorParameters_create()
+        if optimized:
+            # Reduces input image resolution
+            height, width, _ = image.shape
+            resize_factor = 1.0
+            if height > OPT_IMAGE_HEIGHT and width > OPT_IMAGE_WIDTH:
+                resize_factor = min(OPT_IMAGE_HEIGHT/height, OPT_IMAGE_WIDTH/width)
+                image = cv2.resize(image, (0, 0), fx=resize_factor, fy=resize_factor)
         # Iterates for each aruco dictionary
         for dictionary in dictionaries:
             aruco_dict = cv2.aruco.Dictionary_get(dictionary)
             # Detection of all arucos in the image
-            (aruco_corners, aruco_ids, rejected) = cv2.aruco.detectMarkers(input_image, aruco_dict, parameters=aruco_params)
+            (aruco_corners, aruco_ids, rejected) = cv2.aruco.detectMarkers(image, aruco_dict, parameters=aruco_params)
+            if optimized:
+                aruco_corners = [corner/resize_factor for corner in aruco_corners]
             for i in range(0,len(aruco_corners)):
                 # Estimation of each marker pose
                 rotation, translation, markerpoints = cv2.aruco.estimatePoseSingleMarkers(aruco_corners[i], marker_length, matrix_coefficients, distortion_coefficients)
@@ -61,13 +79,13 @@ class ArucoDetection():
         return arucos
 
     @staticmethod
-    def draw_detected_markers(input_image: np.ndarray, arucos: List[Aruco], marker_length: float = 0.02, matrix_coefficients: List[Tuple[float, float, float]] = MATRIX_COEFFICIENTS, distortion_coefficients: Tuple[float, float, float, float, float] = np.zeros((1, 5)), draw_bounds: bool = True, draw_axis: bool = True, draw_ids: bool = True) -> np.ndarray:
+    def draw_detected_markers(image: np.ndarray, arucos: List[Aruco], marker_length: float = 0.02, matrix_coefficients: List[Tuple[float, float, float]] = MATRIX_COEFFICIENTS, distortion_coefficients: Tuple[float, float, float, float, float] = np.zeros((1, 5)), draw_bounds: bool = True, draw_axis: bool = True, draw_ids: bool = True) -> np.ndarray:
         """ Draws a representation of the detected information of the edges and axes of each ArUco marker.
             * Draws an enclosing rectangle fitted to the boundaries of each marker. (`draw_bounds` must be `True`)
             * Draws the x,y,z set of vectors is drawn on each markers's surfaces. (`draw_axis` must be `True`)
         """
         # Copies the image
-        output_image = input_image.copy()
+        output_image = image.copy()
         for aruco in arucos:
             if draw_bounds:
                 # Draws an enclosing rectangle fitted to the markers boundaries

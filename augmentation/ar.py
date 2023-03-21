@@ -4,19 +4,14 @@ import numpy as np
 import augmentation.aruco_module as aruco
 from augmentation.obj import OBJ 
 from aruco.aruco import Aruco
-from math import dist
+from math import dist, sqrt
 
 from typing import Tuple, List
 
 DEFAULT_COLOR = (158, 5, 81)
 
-# TODO: Eliminate this hardcoded intrisic matrix
-EXTRINSIC_MATRIX = np.array([[1019.37187, 0, 618.709848], [0, 1024.2138, 327.280578], [0, 0, 1]] )
-
-M = 2000 # Autoscale constant
-
 def augment_aruco(image: np.array, aruco: Aruco, obj: OBJ, scale: int = 1) -> np.array:
-	""" Projects an AR OBJ on the Aruco surface in the image. TODO: improve definition. Args:
+	""" Projects an Augmented Reality OBJ on the Aruco surface in the image. Args:
 		* `image`: Input image to augment 
 		* `aruco`: Intance of detected ArUco (Aruco Class)
 		* `obj`: Intance of 3D OBJ model to augment.
@@ -25,25 +20,24 @@ def augment_aruco(image: np.array, aruco: Aruco, obj: OBJ, scale: int = 1) -> np
 		Returns the image with augmented 3D model.
 	"""
 	aruco_center = aruco.center()
-	aruco_center.append(0) # TODO: Remove after debug
+	aruco_center.append(0) # Adds z
+	extrinsic_matrix = np.identity(3) # Camera effects already taken into account in aruco rotation estimation
 	# Calculates the intricics matrix
-	intrinsic_matrix = compose_intrisic_matrix(aruco.rotation,[0,0,0])
+	intrinsic_matrix = compose_intrisic_matrix(aruco.rotation,aruco_center)
 	# Calculates the projection matrix
-	projection_matrix = compose_projection_matrix(EXTRINSIC_MATRIX,intrinsic_matrix)
+	projection_matrix = compose_projection_matrix(extrinsic_matrix,intrinsic_matrix)
 	faces_points = []
 	faces_colors = []
 	autoscale_factor = calculate_autoscale_factor(aruco.corners)
 	# Checks if obj has image or mtl texture
 	mtl = hasattr(obj,'materials')
 	for face in obj.faces:
-		# vertices_points = scale*face['points']
-		points = face['points']
-		points = np.array([project_3d_point(point,projection_matrix) for point in points])
+		points = np.array(face['points'], dtype=float)
 		# Resizing
 		points = resize_object(points,scale*autoscale_factor)
-		# Centering
-		points += aruco_center # TODO: Remove after debug
-		# points = np.int32(points) # TODO: Uncomment after debug
+		# Projection
+		points = np.array([project_3d_point(point,projection_matrix) for point in points])
+		# Appends projected face points
 		faces_points.append(points)
 		try:
 			if mtl:
@@ -61,37 +55,37 @@ def augment_aruco(image: np.array, aruco: Aruco, obj: OBJ, scale: int = 1) -> np
 			color = DEFAULT_COLOR # Face color not defined
 		faces_colors.append(color)
 	# Orders obj faces from nearest to furthest
-	faces_points, faces_colors = order_faces([aruco_center[0],aruco_center[1],10000],faces_points,faces_colors) # TODO: Change reference point
-	faces_points = _remove_z_coords(faces_points) # TODO: Remove after debug
+	reference_point = project_3d_point([0,0,0],projection_matrix)[0]
+	reference_point = [0,0,0]
+	# reference_point = [aruco_center[0],aruco_center[1],1000]
+	faces_points, faces_colors = order_faces(reference_point,faces_points,faces_colors)
+	faces_points = _remove_z_coords(faces_points)
 	# Draws obj faces
 	[cv2.fillConvexPoly(image, np.int32(face_points), faces_colors[i]) for i,face_points in enumerate(faces_points)]
 	# for i,face_points in enumerate(faces_points):
 	# 	cv2.fillConvexPoly(image, np.int32(face_points), faces_colors[i])
 	# 	cv2.imshow("camera",image)
-	# 	cv2.waitKey(10)
+	# 	cv2.waitKey(1000)
 	return image
 
 def project_3d_point(point: List[Tuple[int, int, int]], projection_matrix: List[Tuple[int, int, int]]) -> List[Tuple[int, int]]:
 	""" TODO: Include description."""
-	# Converts the point from (x,y,z) to (x,y,z,1) to fit the matrix
+	# Extended point coordinates: from (x,y,z) to (x,y,z,1) to fit the projection matrix product
 	ext_point = np.append(np.array(point),1)
-	# Calculates the projection of the point, retrives only the first two coordinates (third dim is not relevant in image)
-	# projected_point = np.array([np.dot(projection_matrix,ext_point)[0:2]]) # TODO: Uncomment after debug
-	projected_point = np.array([np.dot(projection_matrix,ext_point)]) # TODO: Remove after debug
+	# Proyected point
+	projected_point = np.array([np.dot(projection_matrix,ext_point)])
 	return projected_point 
 
 def compose_intrisic_matrix(rotation_vectors: List[Tuple[int,int,int]], translation_vector: Tuple[int,int,int]) -> List[Tuple[int,int,int]]:
 	""" Combines the rotation and translation vectors to generate the intrisic matrix of augmentation object. Args:
 		* `rotation`: Input image to augment 
-		* `translation`: Intance of detected ArUco (Aruco Class)
+		* `translation_vector`: tranlation vector (xyz offset)
 
 		Returns a 3x4 matrix with the following structure:
 		
-		(rot11 rot12 rot13 tr1
-
-		 rot11 rot12 rot13 tr1
-
-		 rot11 rot12 rot13 tr1)
+		rot11 rot12 rot13 trx \n
+		rot11 rot12 rot13 try \n
+		rot11 rot12 rot13 trz
 	"""
 	intrinsic_matrix = []
 	rotation_vectors = np.array([rotation_vectors[0],rotation_vectors[1],rotation_vectors[2]])
@@ -113,20 +107,22 @@ def compose_projection_matrix(extrinsic_matrix: List[Tuple[int,int,int]], intrin
 def resize_object(face_points: List[Tuple[int,int,int]], scale: int = 1) -> List[Tuple[int,int,int]]:
 	""" Resizes the face to adjust the model to the Aruco bounds. Args:
 		* `face`: Object face
-		* `scale`: Resize factor (1 by default) # TODO: Find out why that factor should be 1/10
+		* `scale`: Resize factor (1 by default)
 	"""
 	return face_points*scale
 
-def calculate_autoscale_factor(aruco_corners: List[Tuple[int,int]]):
+def calculate_autoscale_factor(aruco_corners: List[Tuple[int,int]]) -> float:
+	""" Returns the scaling size of Aruco marker. Used to address the autoescaling obj in marker bounds.Args:
+		* `aruco_corners`: List of Aruco's corners
+	"""
 	# Finds the x and y distance between each corners peers
-	max_size = max([max(abs(aruco_corners[i]-aruco_corners[i-1])) for i in range(0,len(aruco_corners))])
-	return max_size/2000 #TODO: Check hardcoded 2000 param
+	return max([max(abs(aruco_corners[i]-aruco_corners[i-1])) for i in range(0,len(aruco_corners))])
 
 def order_faces(reference: Tuple[int,int,int], faces_points: List[List[Tuple[int,int,int]]], faces_colors: List[List[Tuple[int,int,int]]]) -> List[List[Tuple[int,int,int]]]:
 	""" Recommened before drawing. Orders object's faces by distance to reference point. Args:
 		* 'reference`: Reference point (x,y,z)
-		* `faces_points`: List of faces's points arrays
-		* `faces_colors`: List of faces's colors arrays
+		* `faces_points`: List of faces's points
+		* `faces_colors`: List of faces's colors
 
 		Returns the input arrays ordered from nearest to furthest. 
 	"""
@@ -140,11 +136,11 @@ def order_faces(reference: Tuple[int,int,int], faces_points: List[List[Tuple[int
 		# Distance between centroid and reference point
 		distance = dist(reference, centroid)
 		distances.append(distance)
-	# Gets the ordered indexes by distance
+	# Gets the ordered indexes by distance (nearest->last element)
 	order = np.argsort(distances)
-	ordered_faces_point = [faces_points[i] for i in order] #TODO: Remove after debug
+	ordered_faces_point = [faces_points[i] for i in order]
 	ordered_faces_colors = [faces_colors[i] for i in order]
-	return (np.array(ordered_faces_point), ordered_faces_colors)
+	return (np.array(ordered_faces_point,dtype=object), ordered_faces_colors)
 
 def _remove_z_coords(faces_points):
 	_faces_points = []
@@ -155,15 +151,4 @@ def _remove_z_coords(faces_points):
 			_faces_point.append(face_point)
 		_faces_point = np.array(_faces_point)
 		_faces_points.append(_faces_point)
-	return np.array(_faces_points)
-
-def calculate_autoscale_factor(aruco_corners: List[Tuple[int,int]]) -> int:
-	""" Returns the scaling size of Aruco marker. Used to address the autoescaling obj in marker bounds.Args:
-		* `aruco_corners`: List of Aruco's corners
-
-		Returns an integer.  
-	"""
-	# Finds the maximum length of detected aruco edge
-	max_size = max([max(abs(aruco_corners[i]-aruco_corners[i-1])) for i in range(0,len(aruco_corners))])
-	# The autoscale value depends on a constant of value 2000
-	return max_size/2000
+	return np.array(_faces_points,dtype=object)
